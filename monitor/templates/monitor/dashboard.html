@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Status ao Vivo — Stock Monitor{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0">Status ao Vivo</h2>
+  <div class="d-flex align-items-center gap-3">
+    <span id="market-badge">
+      {% if market_open %}
+        <span class="badge bg-success fs-6"><i class="bi bi-circle-fill me-1" style="font-size:.6rem"></i>Pregão Aberto</span>
+      {% else %}
+        <span class="badge bg-secondary fs-6"><i class="bi bi-circle me-1" style="font-size:.6rem"></i>Mercado Fechado</span>
+      {% endif %}
+    </span>
+    <span class="text-muted small" id="last-update">Atualizando...</span>
+  </div>
+</div>
+
+{% if not stocks %}
+<div class="text-center py-5">
+  <i class="bi bi-activity display-1 text-muted"></i>
+  <p class="mt-3 text-muted">Nenhum ativo ativo para monitorar.</p>
+  <a href="{% url 'stock_add' %}" class="btn btn-primary mt-2">Adicionar ativo</a>
+</div>
+{% else %}
+<div id="stocks-grid" class="row g-3">
+  {% for stock in stocks %}
+  <div class="col-sm-6 col-lg-4" id="card-{{ stock.ticker }}">
+    <div class="card h-100 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-bold fs-5">{{ stock.ticker }}</span>
+        <span class="badge bg-secondary">Carregando...</span>
+      </div>
+      <div class="card-body">
+        <div class="row text-center g-2">
+          <div class="col-6">
+            <div class="text-muted small">Preço Atual</div>
+            <div class="fs-5 fw-semibold price-current">—</div>
+          </div>
+          <div class="col-6">
+            <div class="text-muted small">Lucro / Prejuízo</div>
+            <div class="fs-5 fw-semibold profit-pct">—</div>
+          </div>
+          <div class="col-6">
+            <div class="text-muted small">Preço Médio</div>
+            <div class="text-muted price-avg">R$ {{ stock.avg_price }}</div>
+          </div>
+          <div class="col-6">
+            <div class="text-muted small">Valor (R$)</div>
+            <div class="text-muted profit-value">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer text-muted small d-flex justify-content-between">
+        <span>Investido: R$ {{ stock.invested|floatformat:2 }}</span>
+        <span>Min: {{ stock.min_profit_pct }}% | Máx: {{ stock.max_profit_pct }}%</span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const STATUS_COLORS = {
+  max:         { header: 'bg-success text-white', pct: 'text-success', badge: 'bg-success',   label: 'VENDA MÁX' },
+  min:         { header: 'bg-warning text-dark',  pct: 'text-warning', badge: 'bg-warning text-dark', label: 'Zona de Lucro' },
+  positive:    { header: 'bg-light text-dark',    pct: 'text-primary', badge: 'bg-primary',   label: 'Comprado' },
+  negative:    { header: 'bg-danger text-white',  pct: 'text-danger',  badge: 'bg-danger',    label: 'Prejuízo' },
+  unavailable: { header: 'bg-secondary text-white', pct: 'text-muted', badge: 'bg-secondary', label: 'Sem dados' },
+};
+
+function formatBRL(v) {
+  return v != null ? 'R$ ' + v.toFixed(2).replace('.', ',') : '—';
+}
+function formatPct(v) {
+  if (v == null) return '—';
+  return (v >= 0 ? '+' : '') + v.toFixed(2).replace('.', ',') + '%';
+}
+
+async function refresh() {
+  try {
+    const res = await fetch('{% url "monitor_data" %}');
+    const data = await res.json();
+
+    data.stocks.forEach(s => {
+      const card = document.getElementById('card-' + s.ticker);
+      if (!card) return;
+      const c = STATUS_COLORS[s.status] || STATUS_COLORS.unavailable;
+
+      card.querySelector('.card-header').className = 'card-header d-flex justify-content-between align-items-center ' + c.header;
+      card.querySelector('.badge').className = 'badge ' + c.badge;
+      card.querySelector('.badge').textContent = c.label;
+
+      card.querySelector('.price-current').textContent = formatBRL(s.current_price);
+      card.querySelector('.profit-pct').className = 'fs-5 fw-semibold profit-pct ' + c.pct;
+      card.querySelector('.profit-pct').textContent = formatPct(s.profit_pct);
+      card.querySelector('.profit-value').textContent = formatBRL(s.profit_value);
+    });
+
+    const marketBadge = document.getElementById('market-badge');
+    if (data.market_open) {
+      marketBadge.innerHTML = '<span class="badge bg-success fs-6"><i class="bi bi-circle-fill me-1" style="font-size:.6rem"></i>Pregão Aberto</span>';
+    } else {
+      marketBadge.innerHTML = '<span class="badge bg-secondary fs-6"><i class="bi bi-circle me-1" style="font-size:.6rem"></i>Mercado Fechado</span>';
+    }
+
+    const now = new Date();
+    document.getElementById('last-update').textContent =
+      'Atualizado às ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  } catch(e) {
+    document.getElementById('last-update').textContent = 'Erro ao atualizar';
+  }
+}
+
+refresh();
+setInterval(refresh, 60000);
+</script>
+{% endblock %}

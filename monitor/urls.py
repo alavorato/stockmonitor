@@ -1,0 +1,7 @@
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path("", views.dashboard, name="monitor_dashboard"),
+    path("data/", views.status_data, name="monitor_data"),
+]

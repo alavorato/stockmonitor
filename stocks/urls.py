@@ -6,4 +6,5 @@ urlpatterns = [
     path("stocks/add/", views.stock_add, name="stock_add"),
     path("stocks/<int:pk>/edit/", views.stock_edit, name="stock_edit"),
     path("stocks/<int:pk>/delete/", views.stock_delete, name="stock_delete"),
+    path("stocks/<int:pk>/indicators/", views.stock_indicators, name="stock_indicators"),
 ]

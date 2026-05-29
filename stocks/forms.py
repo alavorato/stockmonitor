@@ -18,7 +18,7 @@ class StockForm(forms.ModelForm):
         widgets = {
             "ticker": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: PETR4"}),
             "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Ex: Petrobras"}),
-            "quantity": forms.NumberInput(attrs={"class": "form-control", "step": "1", "min": "0"}),
+            "quantity": forms.NumberInput(attrs={"class": "form-control", "step": "1", "min": "1"}),
             "avg_price": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
             "min_profit_pct": forms.NumberInput(attrs={"class": "form-control", "step": "0.5", "min": "0"}),
             "max_profit_pct": forms.NumberInput(attrs={"class": "form-control", "step": "0.5", "min": "0"}),

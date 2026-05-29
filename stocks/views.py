@@ -1,7 +1,9 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.http import JsonResponse
 from django.contrib import messages
 from .models import Stock
 from .forms import StockForm
+from indicators import get_indicators, get_recommendation
 
 
 def stock_list(request):
@@ -42,3 +44,21 @@ def stock_delete(request, pk):
         messages.success(request, f"Ativo {ticker} removido.")
         return redirect("stock_list")
     return render(request, "stocks/confirm_delete.html", {"stock": stock})
+
+
+def stock_indicators(request, pk):
+    stock = get_object_or_404(Stock, pk=pk)
+    source = request.GET.get("source", "investidor10")
+    try:
+        indicators = get_indicators(stock.ticker, source=source)
+        recommendation = get_recommendation(indicators)
+        return JsonResponse({
+            "ticker": stock.ticker,
+            "source": source,
+            "indicators": indicators,
+            "recommendation": recommendation,
+        })
+    except RuntimeError as e:
+        return JsonResponse({"error": str(e)}, status=503)
+    except Exception as e:
+        return JsonResponse({"error": f"Erro ao buscar indicadores: {e}"}, status=500)

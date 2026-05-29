@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load app_filters %}
 {% block title %}Meus Ativos — Stock Monitor{% endblock %}
 
 {% block content %}
@@ -15,6 +16,7 @@
     <table class="table table-hover align-middle mb-0">
       <thead class="table-dark">
         <tr>
+          <th></th>
           <th>Ticker</th>
           <th>Nome</th>
           <th class="text-end">Qtd</th>
@@ -22,20 +24,37 @@
           <th class="text-end">Investido</th>
           <th class="text-center">Lucro Min</th>
           <th class="text-center">Lucro Máx</th>
+          <th class="text-center">Lucro Atual</th>
           <th class="text-center">Status</th>
           <th class="text-center">Ações</th>
         </tr>
       </thead>
       <tbody>
         {% for stock in stocks %}
-        <tr>
+        <!-- linha principal -->
+        <tr data-ticker="{{ stock.ticker }}">
+          <td class="ps-3">
+            <button class="btn btn-sm btn-outline-secondary indicator-toggle"
+                    data-pk="{{ stock.pk }}"
+                    title="Ver indicadores fundamentalistas"
+                    style="width:2rem;height:2rem;padding:0;line-height:1">
+              <i class="bi bi-bar-chart-line"></i>
+            </button>
+          </td>
           <td><strong>{{ stock.ticker }}</strong></td>
           <td class="text-muted">{{ stock.name|default:"—" }}</td>
           <td class="text-end">{{ stock.quantity }}</td>
-          <td class="text-end">R$ {{ stock.avg_price }}</td>
-          <td class="text-end">R$ {{ stock.invested|floatformat:2 }}</td>
+          <td class="text-end">{{ stock.avg_price|brl }}</td>
+          <td class="text-end">{{ stock.invested|brl }}</td>
           <td class="text-center text-warning fw-semibold">{{ stock.min_profit_pct }}%</td>
           <td class="text-center text-success fw-semibold">{{ stock.max_profit_pct }}%</td>
+          <td class="text-center profit-cell">
+            {% if stock.active %}
+              <span class="text-muted small">carregando...</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
           <td class="text-center">
             {% if stock.active %}
               <span class="badge bg-success">Ativo</span>
@@ -52,6 +71,35 @@
             </a>
           </td>
         </tr>
+
+        <!-- painel de indicadores (oculto por padrão) -->
+        <tr class="indicator-panel d-none" id="indicators-{{ stock.pk }}">
+          <td colspan="11" class="p-0">
+            <div class="px-4 py-3 bg-light border-top">
+
+              <!-- cabeçalho com abas de fonte -->
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <span class="fw-semibold text-secondary small text-uppercase">
+                  Indicadores — {{ stock.ticker }}
+                </span>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="text-muted" style="font-size:.75rem">Fonte:</span>
+                  <span class="text-muted" style="font-size:.75rem">Fonte: Investidor10</span>
+                  <span class="indicator-updated-{{ stock.pk }} text-muted" style="font-size:.72rem"></span>
+                </div>
+              </div>
+
+              <!-- conteúdo dos indicadores -->
+              <div class="indicator-content-{{ stock.pk }}">
+                <div class="text-muted small py-1">
+                  <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                  Buscando dados...
+                </div>
+              </div>
+
+            </div>
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
@@ -63,5 +111,176 @@
   <p class="mt-3 text-muted">Nenhum ativo cadastrado ainda.</p>
   <a href="{% url 'stock_add' %}" class="btn btn-primary mt-2">Adicionar primeiro ativo</a>
 </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if stocks %}
+<script>
+/* ── Lucro atual (polling do monitor) ─────────────────────────────── */
+async function loadProfits() {
+  try {
+    const res = await fetch('{% url "monitor_data" %}');
+    const data = await res.json();
+    data.stocks.forEach(s => {
+      const row = document.querySelector(`tr[data-ticker="${s.ticker}"]`);
+      if (!row) return;
+      const cell = row.querySelector('.profit-cell');
+      if (!cell) return;
+      if (s.profit_pct == null) {
+        cell.innerHTML = '<span class="text-muted small">sem dados</span>';
+        return;
+      }
+      const sign = s.profit_pct >= 0 ? '+' : '';
+      const pct  = sign + s.profit_pct.toFixed(2).replace('.', ',') + '%';
+      const badges = { max: '<span class="badge bg-success ms-1">MÁX</span>',
+                       min: '<span class="badge bg-warning text-dark ms-1">MIN</span>' };
+      const cls   = { max: 'text-success fw-bold', min: 'text-warning fw-bold',
+                      positive: 'text-primary',    negative: 'text-danger' };
+      cell.innerHTML = `<span class="${cls[s.status] || ''}">${pct}</span>${badges[s.status] || ''}`;
+    });
+  } catch {}
+}
+loadProfits();
+
+/* ── Indicadores fundamentalistas ─────────────────────────────────── */
+
+// cache: { "pk_source": [indicators array] }
+const cache = {};
+
+function indicatorColor(item) {
+  if (item.value === null) return '';
+  const v = item.value;
+  switch (item.key) {
+    case 'p_vp':      return v < 1.0 ? 'text-success' : v > 2.5 ? 'text-danger' : '';
+    case 'p_l':       return v < 15  ? 'text-success' : v > 30  ? 'text-danger' : '';
+    case 'dy':        return v > 6   ? 'text-success' : '';
+    case 'roe':       return v > 15  ? 'text-success' : v < 5   ? 'text-danger' : '';
+    case 'mrg_liq':   return v > 10  ? 'text-success' : v < 0   ? 'text-danger' : '';
+    case 'ev_ebitda': return v > 0 && v < 10 ? 'text-success' : v > 20 ? 'text-danger' : '';
+    case 'div_patrim':return v < 1.0 ? 'text-success' : v > 3   ? 'text-danger' : '';
+    default: return '';
+  }
+}
+
+function renderIndicators(pk, indicators, recommendation) {
+  const container = document.querySelector(`.indicator-content-${pk}`);
+  const updatedEl = document.querySelector(`.indicator-updated-${pk}`);
+  if (!container) return;
+
+  const available = indicators.filter(i => i.display !== null);
+  const missing   = indicators.filter(i => i.display === null);
+
+  if (!available.length) {
+    container.innerHTML = '<span class="text-muted small">Nenhum dado disponível para este ativo.</span>';
+    return;
+  }
+
+  const cards = available.map(item => `
+    <div class="col-6 col-sm-4 col-md-3 col-xl-2">
+      <div class="card border-0 bg-white shadow-sm h-100 px-3 py-2" title="${item.description}">
+        <div class="text-muted" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;line-height:1.2">
+          ${item.label}
+        </div>
+        <div class="my-1 fs-6 fw-semibold ${indicatorColor(item)}">
+          ${item.display}
+        </div>
+        <div class="text-muted" style="font-size:.68rem;line-height:1.3">
+          ${item.description}
+        </div>
+      </div>
+    </div>`).join('');
+
+  const missingHtml = missing.length
+    ? `<div class="mt-2 text-muted" style="font-size:.72rem">
+         Não disponível: ${missing.map(i => i.label).join(', ')}
+       </div>`
+    : '';
+
+  // Bloco de recomendação
+  const sigCfg = {
+    compra:   {badge: 'bg-success',            icon: 'bi-graph-up-arrow', label: 'Compra'},
+    venda:    {badge: 'bg-danger',             icon: 'bi-graph-down-arrow', label: 'Venda'},
+    aguardar: {badge: 'bg-warning text-dark',  icon: 'bi-hourglass-split', label: 'Aguardar'},
+  };
+  const typeCfg = {
+    positive: {cls: 'text-success', icon: 'bi-check-circle-fill'},
+    negative: {cls: 'text-danger',  icon: 'bi-x-circle-fill'},
+    neutral:  {cls: 'text-muted',   icon: 'bi-dash-circle'},
+  };
+  const sig = recommendation ? sigCfg[recommendation.signal] || sigCfg.aguardar : null;
+  const recHtml = sig ? `
+    <div class="mt-3 p-3 rounded-3 border bg-white">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="fw-semibold" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:#6c757d">
+          Análise Fundamentalista
+        </span>
+        <span class="badge ${sig.badge}">
+          <i class="bi ${sig.icon} me-1"></i>${sig.label}
+        </span>
+      </div>
+      <ul class="list-unstyled mb-0" style="font-size:.82rem">
+        ${recommendation.reasons.map(r => {
+          const tc = typeCfg[r.type] || typeCfg.neutral;
+          return `<li class="${tc.cls} mb-1"><i class="bi ${tc.icon} me-1"></i>${r.text}</li>`;
+        }).join('')}
+      </ul>
+    </div>` : '';
+
+  container.innerHTML = `<div class="row g-2">${cards}</div>${missingHtml}${recHtml}`;
+  updatedEl.textContent = 'atualizado ' +
+    new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+}
+
+function setLoading(pk) {
+  const container = document.querySelector(`.indicator-content-${pk}`);
+  if (container) container.innerHTML = `
+    <div class="text-muted small py-1">
+      <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+      Buscando dados...
+    </div>`;
+}
+
+async function fetchIndicators(pk) {
+  if (cache[pk]) {
+    renderIndicators(pk, cache[pk].indicators, cache[pk].recommendation);
+    return;
+  }
+  setLoading(pk);
+  try {
+    const res  = await fetch(`/stocks/${pk}/indicators/?source=investidor10`);
+    const data = await res.json();
+    if (data.error) {
+      document.querySelector(`.indicator-content-${pk}`).innerHTML =
+        `<span class="text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>${data.error}</span>`;
+      return;
+    }
+    cache[pk] = {indicators: data.indicators, recommendation: data.recommendation};
+    renderIndicators(pk, data.indicators, data.recommendation);
+  } catch (e) {
+    document.querySelector(`.indicator-content-${pk}`).innerHTML =
+      '<span class="text-danger small">Erro de conexão ao buscar indicadores.</span>';
+  }
+}
+
+/* Botão de abrir/fechar painel */
+document.querySelectorAll('.indicator-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const pk    = btn.dataset.pk;
+    const panel = document.getElementById(`indicators-${pk}`);
+    const open  = !panel.classList.contains('d-none');
+
+    if (open) {
+      panel.classList.add('d-none');
+      btn.classList.replace('btn-secondary', 'btn-outline-secondary');
+      return;
+    }
+
+    panel.classList.remove('d-none');
+    btn.classList.replace('btn-outline-secondary', 'btn-secondary');
+    fetchIndicators(pk);
+  });
+});
+</script>
 {% endif %}
 {% endblock %}

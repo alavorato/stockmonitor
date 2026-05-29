@@ -6,7 +6,7 @@ from market import get_current_price, is_market_open
 
 def _stock_status(s):
     avg = float(s.avg_price)
-    qty = float(s.quantity)
+    qty = int(s.quantity)
     min_pct = float(s.min_profit_pct)
     max_pct = float(s.max_profit_pct)
 

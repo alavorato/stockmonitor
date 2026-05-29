@@ -5,7 +5,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key-change-in-prod")
 DEBUG = os.environ.get("DEBUG", "True") == "True"
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost 127.0.0.1").split()
+_allowed_raw = os.environ.get("ALLOWED_HOSTS", "localhost 127.0.0.1")
+ALLOWED_HOSTS = [h.strip() for h in _allowed_raw.replace(",", " ").split() if h.strip()]
+
+# Em modo DEBUG (uso local/Tailscale), aceita qualquer host.
+# O controle de acesso é feito pelo Tailscale — só dispositivos
+# autenticados chegam até aqui.
+if DEBUG:
+    ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -17,6 +24,7 @@ INSTALLED_APPS = [
     "stocks",
     "monitor",
     "backtest",
+    "operations",
 ]
 
 MIDDLEWARE = [

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load app_filters %}
 {% block title %}Backtest — Stock Monitor{% endblock %}
 
 {% block content %}
@@ -9,19 +10,26 @@
     <form method="post" class="row g-3 align-items-end">
       {% csrf_token %}
 
-      <div class="col-sm-5">
+      <div class="col-sm-3">
         <label class="form-label fw-semibold">Ativo</label>
         <select name="stock_id" class="form-select" required>
-          <option value="">Selecione um ativo...</option>
+          <option value="">Selecione...</option>
           {% for s in stocks %}
-            <option value="{{ s.pk }}" {% if selected_stock.pk == s.pk %}selected{% endif %}>
+            <option value="{{ s.pk }}" data-quantity="{{ s.quantity }}"
+              {% if selected_stock.pk == s.pk %}selected{% endif %}>
               {{ s.ticker }}{% if s.name %} — {{ s.name }}{% endif %}
             </option>
           {% endfor %}
         </select>
       </div>
 
-      <div class="col-sm-3">
+      <div class="col-sm-2">
+        <label class="form-label fw-semibold">Cotas simuladas</label>
+        <input type="number" name="quantity" id="quantity" class="form-control"
+               min="1" step="1" value="{{ selected_quantity|floatformat:0|default:'' }}" placeholder="Ex: 100">
+      </div>
+
+      <div class="col-sm-2">
         <label class="form-label fw-semibold">Período</label>
         <select name="period" class="form-select">
           <option value="1y" {% if selected_period == "1y" %}selected{% endif %}>1 ano</option>
@@ -30,6 +38,30 @@
       </div>
 
       <div class="col-sm-2">
+        <label class="form-label fw-semibold">Trailing stop (%)</label>
+        <input type="number" name="trailing_stop_pct" class="form-control"
+               min="0.5" max="20" step="0.5"
+               value="{{ selected_trailing_pct|default:'3' }}">
+        <div class="form-text">% queda do pico p/ vender</div>
+      </div>
+
+      <div class="col-sm-2">
+        <label class="form-label fw-semibold">Queda p/ recompra (%)</label>
+        <input type="number" name="buyback_pct" class="form-control"
+               min="0.5" max="30" step="0.5"
+               value="{{ selected_buyback_pct|default:'5' }}">
+        <div class="form-text">% abaixo do preço de venda</div>
+      </div>
+
+      <div class="col-sm-2">
+        <label class="form-label fw-semibold">Manter mínimo (%)</label>
+        <input type="number" name="min_hold_pct" class="form-control"
+               min="0" max="99" step="1"
+               value="{{ selected_min_hold_pct|default:'60' }}">
+        <div class="form-text">% mínimo de cotas a manter</div>
+      </div>
+
+      <div class="col-sm-1">
         <button type="submit" class="btn btn-primary w-100">Simular</button>
       </div>
     </form>
@@ -41,96 +73,180 @@
     <div class="alert alert-warning">{{ result.error }}</div>
   {% else %}
 
-  <!-- Resumo -->
+  <!-- Parâmetros da simulação -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body py-3">
+      <div class="d-flex flex-wrap gap-4">
+        <div><div class="stat-label">Ativo</div><div class="stat-value">{{ selected_stock.ticker }}</div></div>
+        <div><div class="stat-label">Preço de compra</div><div class="stat-value">{{ result.purchase_price|brl }}</div></div>
+        <div><div class="stat-label">Cotas</div><div class="stat-value">{{ result.initial_shares }}</div></div>
+        <div><div class="stat-label">Investimento inicial</div><div class="stat-value">{{ result.initial_investment|brl }}</div></div>
+        <div><div class="stat-label">Período</div><div class="stat-value">{% if selected_period == "1y" %}1 ano{% else %}2 anos{% endif %}</div></div>
+        <div>
+          <div class="stat-label">Limiar p/ venda</div>
+          <div class="stat-value text-warning">{{ selected_stock.min_profit_pct }}%</div>
+        </div>
+        <div><div class="stat-label">Trailing stop</div><div class="stat-value">{{ selected_trailing_pct }}%</div></div>
+        <div><div class="stat-label">Gatilho recompra</div><div class="stat-value">{{ selected_buyback_pct }}%</div></div>
+        <div><div class="stat-label">Manter mínimo</div><div class="stat-value">{{ selected_min_hold_pct }}%</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cards de resumo -->
   <div class="row g-3 mb-4">
     <div class="col-6 col-md-3">
-      <div class="card text-center shadow-sm border-warning">
-        <div class="card-body py-3">
-          <div class="text-muted small">Alertas Mín</div>
-          <div class="fs-3 fw-bold text-warning">{{ result.summary.total_min_alerts }}</div>
-          <div class="text-muted small">Zona de Lucro</div>
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center py-3">
+          <div class="stat-label">Vendas parciais</div>
+          <div class="stat-value text-danger mt-1">{{ result.summary.sell_count }}</div>
         </div>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="card text-center shadow-sm border-success">
-        <div class="card-body py-3">
-          <div class="text-muted small">Alertas Máx</div>
-          <div class="fs-3 fw-bold text-success">{{ result.summary.total_max_alerts }}</div>
-          <div class="text-muted small">Alerta Máximo</div>
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center py-3">
+          <div class="stat-label">Recompras</div>
+          <div class="stat-value text-primary mt-1">{{ result.summary.buy_count }}</div>
         </div>
       </div>
     </div>
     <div class="col-6 col-md-3">
-      <div class="card text-center shadow-sm">
-        <div class="card-body py-3">
-          <div class="text-muted small">Lucro (vendas máx)</div>
-          <div class="fs-4 fw-bold {% if result.summary.profit_if_sold_at_max >= 0 %}text-success{% else %}text-danger{% endif %}">
-            R$ {{ result.summary.profit_if_sold_at_max|floatformat:2 }}
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center py-3">
+          <div class="stat-label">Lucro capturado (líq.)</div>
+          <div class="stat-value mt-1 {% if result.summary.total_profit_captured >= 0 %}text-success{% else %}text-danger{% endif %}">
+            {{ result.summary.total_profit_captured|brl }}
+          </div>
+          {% if result.summary.total_fees > 0 %}
+          <div class="text-muted" style="font-size:.78rem">taxas: {{ result.summary.total_fees|brl }}</div>
+          {% endif %}
+          {% if result.summary.total_saved > 0 %}
+          <div class="text-info" style="font-size:.78rem">+{{ result.summary.total_saved|brl }} recompras</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body text-center py-3">
+          <div class="stat-label">Valor total atual</div>
+          <div class="stat-value mt-1">{{ result.summary.total_value|brl }}</div>
+          <div style="font-size:.8rem">
+            {% if result.summary.total_profit >= 0 %}
+              <span class="text-success">+{{ result.summary.total_profit|brl }} ({{ result.summary.total_profit_pct }}%)</span>
+            {% else %}
+              <span class="text-danger">{{ result.summary.total_profit|brl }} ({{ result.summary.total_profit_pct }}%)</span>
+            {% endif %}
           </div>
         </div>
       </div>
     </div>
-    <div class="col-6 col-md-3">
-      <div class="card text-center shadow-sm">
-        <div class="card-body py-3">
-          <div class="text-muted small">Lucro (vendas mín)</div>
-          <div class="fs-4 fw-bold {% if result.summary.profit_if_sold_at_min >= 0 %}text-warning{% else %}text-danger{% endif %}">
-            R$ {{ result.summary.profit_if_sold_at_min|floatformat:2 }}
-          </div>
+  </div>
+
+  <!-- Posição final -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body py-3">
+      <div class="d-flex flex-wrap gap-4">
+        <div><div class="stat-label">Cotas em mãos</div><div class="fw-semibold">{{ result.summary.shares_held }}</div></div>
+        <div><div class="stat-label">Preço médio atual</div><div class="fw-semibold">{{ result.summary.last_avg_price|brl }}</div></div>
+        <div><div class="stat-label">Último preço</div><div class="fw-semibold">{{ result.summary.last_price|brl }}</div></div>
+        <div><div class="stat-label">Valor da posição</div><div class="fw-semibold">{{ result.summary.position_value|brl }}</div></div>
+        {% if result.summary.pending_cash > 0 %}
+        <div>
+          <div class="stat-label">Aguardando recompra ({{ result.summary.pending_buybacks_count }} ordens)</div>
+          <div class="fw-semibold text-warning">{{ result.summary.pending_cash|brl }}</div>
         </div>
+        {% endif %}
+        {% if result.summary.free_cash > 0 %}
+        <div>
+          <div class="stat-label">Caixa livre</div>
+          <div class="fw-semibold text-success">{{ result.summary.free_cash|brl }}</div>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
 
   <!-- Gráfico -->
   <div class="card shadow-sm mb-4">
-    <div class="card-header">
-      <strong>{{ selected_stock.ticker }}</strong>
-      — Histórico de preços com alertas
-      <small class="text-muted ms-2">
-        Preço médio: R$ {{ selected_stock.avg_price }} |
-        Meta mín: {{ selected_stock.min_profit_pct }}% |
-        Meta máx: {{ selected_stock.max_profit_pct }}%
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span>Histórico de preços — <strong>{{ selected_stock.ticker }}</strong></span>
+      <small class="text-muted">
+        Compra: {{ result.purchase_price|brl }} &nbsp;|&nbsp;
+        Limiar: {{ selected_stock.min_profit_pct }}%
       </small>
     </div>
-    <div class="card-body">
-      <canvas id="backtestChart" height="100"></canvas>
+    <!-- altura fixa responsiva: 320px desktop, 240px mobile -->
+    <div class="card-body p-2 p-sm-3" style="position:relative;height:320px">
+      <canvas id="backtestChart"></canvas>
+    </div>
+    <div class="card-footer text-muted small">
+      <span class="me-3"><span style="color:#dc3545">▼</span> Venda parcial</span>
+      <span><span style="color:#0d6efd">▲</span> Recompra</span>
     </div>
   </div>
 
-  <!-- Tabela de operações -->
-  {% if result.trades %}
+  <!-- Tabela de eventos -->
+  {% if result.events %}
   <div class="card shadow-sm">
-    <div class="card-header">Operações simuladas ({{ result.trades|length }})</div>
+    <div class="card-header">Histórico de operações ({{ result.events|length }})</div>
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0 small">
         <thead class="table-dark">
           <tr>
             <th>Data</th>
             <th>Tipo</th>
             <th class="text-end">Preço</th>
-            <th class="text-end">Lucro %</th>
-            <th class="text-end">Lucro R$</th>
+            <th class="text-end">Pico</th>
+            <th class="text-end">Cotas</th>
+            <th class="text-end">Valor</th>
+            <th class="text-end">Lucro / Economia</th>
+            <th class="text-end">Taxa B3</th>
+            <th class="text-end">Cotas em mãos</th>
+            <th class="text-end">Caixa / Gatilho</th>
           </tr>
         </thead>
         <tbody>
-          {% for trade in result.trades %}
-          <tr>
-            <td>{{ trade.date }}</td>
+          {% for e in result.events %}
+          <tr class="{% if e.type == 'SELL' %}table-danger{% else %}table-primary{% endif %} bg-opacity-25">
+            <td class="text-nowrap">{{ e.date }}</td>
             <td>
-              {% if trade.type == "MAX" %}
-                <span class="badge bg-success">{{ trade.label }}</span>
+              {% if e.type == "SELL" %}
+                <span class="badge bg-danger">Venda</span>
+                <small class="text-muted ms-1 d-block">+{{ e.profit_pct_at_sell }}%</small>
+                <small class="text-muted">PM: {{ e.avg_price_used|brl }}</small>
               {% else %}
-                <span class="badge bg-warning text-dark">{{ trade.label }}</span>
+                <span class="badge bg-primary">Recompra</span>
+                <small class="text-muted ms-1 d-block">PM: {{ e.new_avg_price|brl }}</small>
+                <small class="text-muted">ref. {{ e.sell_ref }}</small>
               {% endif %}
             </td>
-            <td class="text-end">R$ {{ trade.price }}</td>
-            <td class="text-end {% if trade.profit_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
-              +{{ trade.profit_pct }}%
+            <td class="text-end text-nowrap">{{ e.price|brl }}</td>
+            <td class="text-end text-muted text-nowrap">
+              {% if e.type == "SELL" %}{{ e.peak_price|brl }}{% else %}—{% endif %}
             </td>
-            <td class="text-end fw-semibold {% if trade.profit_value >= 0 %}text-success{% else %}text-danger{% endif %}">
-              R$ {{ trade.profit_value|floatformat:2 }}
+            <td class="text-end">
+              {% if e.type == "SELL" %}<span class="text-danger">−{{ e.shares_sold }}</span>
+              {% else %}<span class="text-primary">+{{ e.shares_bought }}</span>{% endif %}
+            </td>
+            <td class="text-end text-nowrap">
+              {% if e.type == "SELL" %}{{ e.sale_value|brl }}
+              {% else %}{{ e.buy_value|brl }}{% endif %}
+            </td>
+            <td class="text-end fw-semibold text-nowrap">
+              {% if e.type == "SELL" %}<span class="text-success">{{ e.profit_captured|brl }}</span>
+              {% else %}<span class="text-info">+{{ e.saved|brl }}</span>{% endif %}
+            </td>
+            <td class="text-end text-muted text-nowrap">
+              {% if e.type == "SELL" %}{{ e.fee|brl }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end">{{ e.shares_after }}</td>
+            <td class="text-end text-nowrap">
+              {% if e.type == "SELL" %}
+                {{ e.cash|brl }}
+                <div class="text-muted" style="font-size:.72em">&lt; {{ e.buyback_trigger|brl }}</div>
+              {% else %}—{% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -139,8 +255,8 @@
     </div>
   </div>
   {% else %}
-  <div class="alert alert-info">
-    Nenhum alerta teria sido disparado neste período com os parâmetros atuais.
+  <div class="alert alert-info rounded-3">
+    Nenhuma operação teria sido disparada neste período com os parâmetros atuais.
   </div>
   {% endif %}
 
@@ -149,94 +265,114 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>
+document.querySelector('select[name="stock_id"]').addEventListener('change', function () {
+  const qty = this.options[this.selectedIndex].dataset.quantity;
+  if (qty) document.getElementById('quantity').value = Math.round(qty);
+});
+</script>
+
 {% if chart_data_json != "null" %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
 const chartData = {{ chart_data_json|safe }};
-
-const datasets = [
-  {
-    label: 'Preço',
-    data: chartData.prices,
-    borderColor: '#0d6efd',
-    borderWidth: 1.5,
-    pointRadius: 0,
-    fill: false,
-    tension: 0.1,
-    order: 3,
-  },
-  {
-    label: 'Preço Médio',
-    data: chartData.labels.map(() => chartData.avg_price),
-    borderColor: '#6c757d',
-    borderWidth: 1,
-    borderDash: [6, 4],
-    pointRadius: 0,
-    fill: false,
-    order: 4,
-  },
-  {
-    label: 'Meta Mín',
-    data: chartData.labels.map(() => chartData.min_price),
-    borderColor: '#ffc107',
-    borderWidth: 1.5,
-    borderDash: [6, 4],
-    pointRadius: 0,
-    fill: false,
-    order: 4,
-  },
-  {
-    label: 'Meta Máx',
-    data: chartData.labels.map(() => chartData.max_price),
-    borderColor: '#198754',
-    borderWidth: 1.5,
-    borderDash: [6, 4],
-    pointRadius: 0,
-    fill: false,
-    order: 4,
-  },
-  {
-    label: 'Zona de Lucro',
-    data: chartData.min_points,
-    borderColor: '#ffc107',
-    backgroundColor: '#ffc107',
-    pointRadius: chartData.min_points.map(v => v != null ? 8 : 0),
-    pointStyle: 'triangle',
-    showLine: false,
-    order: 1,
-  },
-  {
-    label: 'Alerta Máximo',
-    data: chartData.max_points,
-    borderColor: '#198754',
-    backgroundColor: '#198754',
-    pointRadius: chartData.max_points.map(v => v != null ? 8 : 0),
-    pointStyle: 'triangle',
-    showLine: false,
-    order: 1,
-  },
-];
+const isMobile  = window.innerWidth < 576;
 
 new Chart(document.getElementById('backtestChart'), {
   type: 'line',
-  data: { labels: chartData.labels, datasets },
+  data: {
+    labels: chartData.labels,
+    datasets: [
+      {
+        label: 'Preço',
+        data: chartData.prices,
+        borderColor: '#0d6efd',
+        borderWidth: isMobile ? 1 : 1.5,
+        pointRadius: 0,
+        fill: false,
+        tension: 0.1,
+        order: 3,
+      },
+      {
+        label: 'Compra',
+        data: chartData.labels.map(() => chartData.avg_price),
+        borderColor: '#6c757d',
+        borderWidth: 1,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        fill: false,
+        order: 4,
+      },
+      {
+        label: 'Limiar {{ selected_stock.min_profit_pct }}%',
+        data: chartData.labels.map(() => chartData.min_price),
+        borderColor: '#ffc107',
+        borderWidth: 1,
+        borderDash: [4, 4],
+        pointRadius: 0,
+        fill: false,
+        order: 4,
+      },
+      {
+        label: 'Venda',
+        data: chartData.sell_points,
+        borderColor: '#dc3545',
+        backgroundColor: '#dc3545',
+        pointRadius: chartData.sell_points.map(v => v != null ? (isMobile ? 7 : 9) : 0),
+        pointStyle: 'triangle',
+        rotation: 180,
+        showLine: false,
+        order: 1,
+      },
+      {
+        label: 'Recompra',
+        data: chartData.buy_points,
+        borderColor: '#0d6efd',
+        backgroundColor: '#0d6efd',
+        pointRadius: chartData.buy_points.map(v => v != null ? (isMobile ? 7 : 9) : 0),
+        pointStyle: 'triangle',
+        showLine: false,
+        order: 1,
+      },
+    ]
+  },
   options: {
     responsive: true,
+    maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
     plugins: {
-      legend: { position: 'bottom' },
+      legend: {
+        position: 'bottom',
+        labels: {
+          boxWidth: 12,
+          padding: isMobile ? 8 : 16,
+          font: { size: isMobile ? 10 : 12 },
+        }
+      },
       tooltip: {
         callbacks: {
           label: ctx => {
             if (ctx.parsed.y == null) return null;
-            return ctx.dataset.label + ': R$ ' + ctx.parsed.y.toFixed(2);
+            const v = ctx.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+            return ctx.dataset.label + ': R$ ' + v;
           }
         }
       }
     },
     scales: {
-      x: { ticks: { maxTicksLimit: 14, maxRotation: 0 } },
-      y: { ticks: { callback: v => 'R$ ' + v.toFixed(2) } }
+      x: {
+        ticks: {
+          maxTicksLimit: isMobile ? 6 : 12,
+          maxRotation: 0,
+          font: { size: isMobile ? 9 : 11 },
+        }
+      },
+      y: {
+        ticks: {
+          font: { size: isMobile ? 9 : 11 },
+          callback: v => 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}),
+        }
+      }
     }
   }
 });

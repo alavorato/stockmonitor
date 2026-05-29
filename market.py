@@ -1,4 +1,3 @@
-import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -28,25 +27,46 @@ def _b3_symbol(ticker: str) -> str:
     return t if t.endswith(".SA") else f"{t}.SA"
 
 
+def _extract_last_close(hist) -> float | None:
+    if hist is None or hist.empty:
+        return None
+    close = hist["Close"]
+    # yfinance pode retornar DataFrame em vez de Series em algumas versões
+    if hasattr(close, "squeeze"):
+        close = close.squeeze()
+    val = close.iloc[-1]
+    # pandas scalar pode ser Series de tamanho 1
+    if hasattr(val, "item"):
+        val = val.item()
+    return float(val)
+
+
 def get_current_price(ticker: str) -> float | None:
+    sym = _b3_symbol(ticker)
     try:
-        stock = yf.Ticker(_b3_symbol(ticker))
+        stock = yf.Ticker(sym)
+        # Tenta dados do dia com granularidade de 1 minuto
         hist = stock.history(period="1d", interval="1m")
-        if hist.empty:
-            return None
-        return float(hist["Close"].iloc[-1])
+        price = _extract_last_close(hist)
+        if price is not None:
+            return price
+        # Fallback: últimos 5 dias (útil fora do horário de pregão)
+        hist = stock.history(period="5d", interval="1d")
+        return _extract_last_close(hist)
     except Exception:
         return None
 
 
 def get_intraday_prices(ticker: str, periods: int = 8) -> list[float]:
-    """Returns up to `periods` most recent 15-min closing prices for today."""
+    """Retorna até `periods` fechamentos de 15min mais recentes do dia."""
     try:
         stock = yf.Ticker(_b3_symbol(ticker))
         hist = stock.history(period="1d", interval="15m")
-        if hist.empty:
+        if hist is None or hist.empty:
             return []
-        prices = hist["Close"].tolist()
-        return prices[-periods:]
+        close = hist["Close"]
+        if hasattr(close, "squeeze"):
+            close = close.squeeze()
+        return [float(v) for v in close.tolist()][-periods:]
     except Exception:
         return []

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load app_filters %}
 {% block title %}Status ao Vivo — Stock Monitor{% endblock %}
 
 {% block content %}
@@ -43,7 +44,7 @@
           </div>
           <div class="col-6">
             <div class="text-muted small">Preço Médio</div>
-            <div class="text-muted price-avg">R$ {{ stock.avg_price }}</div>
+            <div class="text-muted price-avg">{{ stock.avg_price|brl }}</div>
           </div>
           <div class="col-6">
             <div class="text-muted small">Valor (R$)</div>
@@ -52,7 +53,7 @@
         </div>
       </div>
       <div class="card-footer text-muted small d-flex justify-content-between">
-        <span>Investido: R$ {{ stock.invested|floatformat:2 }}</span>
+        <span>Investido: {{ stock.invested|brl }}</span>
         <span>Min: {{ stock.min_profit_pct }}% | Máx: {{ stock.max_profit_pct }}%</span>
       </div>
     </div>
@@ -73,7 +74,8 @@ const STATUS_COLORS = {
 };
 
 function formatBRL(v) {
-  return v != null ? 'R$ ' + v.toFixed(2).replace('.', ',') : '—';
+  if (v == null) return '—';
+  return 'R$ ' + Math.abs(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 function formatPct(v) {
   if (v == null) return '—';

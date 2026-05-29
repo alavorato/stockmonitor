@@ -4,7 +4,7 @@ from django.db import models
 class Stock(models.Model):
     ticker = models.CharField(max_length=15, unique=True)
     name = models.CharField(max_length=100, blank=True)
-    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    quantity = models.PositiveIntegerField()
     avg_price = models.DecimalField(max_digits=10, decimal_places=4)
     min_profit_pct = models.DecimalField(max_digits=5, decimal_places=2, default=5.0)
     max_profit_pct = models.DecimalField(max_digits=5, decimal_places=2, default=10.0)

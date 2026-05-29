@@ -7,9 +7,44 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    body { background-color: #f8f9fa; }
-    .navbar-brand { letter-spacing: -.5px; }
-    .nav-link.active { font-weight: 600; }
+    body {
+      background-color: #f0f2f5;
+      font-size: .9375rem;
+    }
+    /* Navbar */
+    .navbar { padding-top: .6rem; padding-bottom: .6rem; }
+    .navbar-brand { letter-spacing: -.5px; font-size: 1.15rem; }
+    .nav-link { border-radius: .375rem; padding: .35rem .75rem; transition: background .15s; }
+    .nav-link:hover { background: rgba(255,255,255,.08); }
+    .nav-link.active { font-weight: 600; background: rgba(255,255,255,.12); }
+
+    /* Cards */
+    .card { border: none; border-radius: .75rem; }
+    .card-header {
+      background: transparent;
+      border-bottom: 1px solid rgba(0,0,0,.07);
+      font-weight: 600;
+      padding: .85rem 1.1rem;
+    }
+    .card.shadow-sm { box-shadow: 0 1px 4px rgba(0,0,0,.08), 0 0 0 1px rgba(0,0,0,.04) !important; }
+
+    /* Tables */
+    .table > :not(caption) > * > * { padding: .6rem .75rem; }
+    .table-responsive { border-radius: 0 0 .75rem .75rem; }
+
+    /* Badges */
+    .badge { font-weight: 500; letter-spacing: .02em; }
+
+    /* Summary stat blocks */
+    .stat-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: #6c757d; }
+    .stat-value { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
+
+    /* Mobile tweaks */
+    @media (max-width: 575px) {
+      .container { padding-left: .85rem; padding-right: .85rem; }
+      h2 { font-size: 1.3rem; }
+      .stat-value { font-size: 1.1rem; }
+    }
   </style>
 </head>
 <body>
@@ -19,27 +54,33 @@
     <a class="navbar-brand fw-bold" href="{% url 'stock_list' %}">
       <i class="bi bi-graph-up-arrow text-success me-1"></i>Stock Monitor
     </a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navMenu">
-      <ul class="navbar-nav ms-auto">
+      <ul class="navbar-nav ms-auto gap-1">
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'stock_list' or request.resolver_match.url_name == 'stock_add' or request.resolver_match.url_name == 'stock_edit' %}active{% endif %}"
              href="{% url 'stock_list' %}">
-            <i class="bi bi-list-ul"></i> Ativos
+            <i class="bi bi-list-ul me-1"></i>Ativos
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'monitor_dashboard' %}active{% endif %}"
              href="{% url 'monitor_dashboard' %}">
-            <i class="bi bi-activity"></i> Status
+            <i class="bi bi-activity me-1"></i>Status
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if request.resolver_match.url_name == 'backtest_index' %}active{% endif %}"
              href="{% url 'backtest_index' %}">
-            <i class="bi bi-graph-up"></i> Backtest
+            <i class="bi bi-graph-up me-1"></i>Backtest
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if 'operations' in request.resolver_match.url_name %}active{% endif %}"
+             href="{% url 'operations_dashboard' %}">
+            <i class="bi bi-lightning me-1"></i>Operações
           </a>
         </li>
       </ul>
@@ -50,7 +91,7 @@
 <div class="container py-4">
   {% if messages %}
     {% for message in messages %}
-      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3" role="alert">
         {{ message }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>

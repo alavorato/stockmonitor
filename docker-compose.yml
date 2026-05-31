@@ -34,11 +34,13 @@ services:
 
   worker:
     build: .
-    command: python manage.py run_worker
+    command: python -u manage.py run_worker
     volumes:
       - .:/app
     env_file:
       - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
     depends_on:
       db:
         condition: service_healthy

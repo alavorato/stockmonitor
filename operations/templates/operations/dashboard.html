@@ -117,9 +117,20 @@
       <strong>{{ pos.stock.ticker }}</strong>
       {% if pos.stock.name %}<span class="text-muted fw-normal"> — {{ pos.stock.name }}</span>{% endif %}
     </span>
-    <small class="text-muted">
-      Última verificação: {{ pos.last_checked|date:"d/m/y H:i"|default:"—" }}
-      &nbsp;|&nbsp; Estratégia: trailing {{ pos.trailing_stop_pct }}% · recompra {{ pos.buyback_pct }}% · manter {{ pos.min_hold_pct }}%
+    <small class="text-muted d-flex align-items-center gap-2 flex-wrap">
+      <span>Última verificação: {{ pos.last_checked|date:"d/m/y H:i"|default:"—" }}</span>
+      <span>&nbsp;|&nbsp;</span>
+      <span>Trailing {{ pos.trailing_stop_pct }}% · Recompra {{ pos.buyback_pct }}% · Manter {{ pos.min_hold_pct }}%</span>
+      <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1"
+              data-bs-toggle="modal" data-bs-target="#editModal"
+              data-pos-id="{{ pos.pk }}"
+              data-ticker="{{ pos.stock.ticker }}"
+              data-trailing="{{ pos.trailing_stop_pct }}"
+              data-buyback="{{ pos.buyback_pct }}"
+              data-hold="{{ pos.min_hold_pct }}"
+              title="Editar parâmetros">
+        <i class="bi bi-pencil" style="font-size:.7rem"></i>
+      </button>
     </small>
   </div>
   <div class="card-body py-3">
@@ -223,6 +234,47 @@
 </div>
 {% endfor %}
 
+{# ── Modal de edição de parâmetros ─────────────────────────────────────── #}
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-pencil me-1"></i>Parâmetros — <span id="editTicker"></span></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="editForm">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Trailing Stop (%)</label>
+            <input type="number" name="trailing_stop_pct" id="editTrailing"
+                   class="form-control form-control-sm" step="0.1" min="0.1" max="50" required>
+            <div class="form-text">Queda a partir do pico que aciona a venda.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Recompra (%)</label>
+            <input type="number" name="buyback_pct" id="editBuyback"
+                   class="form-control form-control-sm" step="0.1" min="0.1" max="50" required>
+            <div class="form-text">Queda a partir do preço de venda para recomprar.</div>
+          </div>
+          <div class="mb-0">
+            <label class="form-label small fw-semibold">Manter mínimo (%)</label>
+            <input type="number" name="min_hold_pct" id="editHold"
+                   class="form-control form-control-sm" step="1" min="0" max="99" required>
+            <div class="form-text">Porcentagem mínima da posição a manter em carteira.</div>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check-lg me-1"></i>Salvar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 {# ── Modal de confirmação ───────────────────────────────────────────────── #}
 <div class="modal fade" id="confirmModal" tabindex="-1">
   <div class="modal-dialog modal-sm">
@@ -257,6 +309,18 @@
 
 {% block extra_js %}
 <script>
+const editModal = document.getElementById('editModal');
+if (editModal) {
+  editModal.addEventListener('show.bs.modal', e => {
+    const btn = e.relatedTarget;
+    document.getElementById('editTicker').textContent   = btn.dataset.ticker;
+    document.getElementById('editTrailing').value       = parseFloat(btn.dataset.trailing).toFixed(1);
+    document.getElementById('editBuyback').value        = parseFloat(btn.dataset.buyback).toFixed(1);
+    document.getElementById('editHold').value           = parseInt(btn.dataset.hold);
+    document.getElementById('editForm').action          = `/operations/${btn.dataset.posId}/edit/`;
+  });
+}
+
 const modal = document.getElementById('confirmModal');
 if (modal) {
   modal.addEventListener('show.bs.modal', e => {

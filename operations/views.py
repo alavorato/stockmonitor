@@ -188,3 +188,18 @@ def cancel_signal(request, pk):
     return redirect("operations_dashboard")
 
 
+@require_POST
+def edit_position(request, pk):
+    pos = get_object_or_404(StockPosition, pk=pk)
+    try:
+        pos.trailing_stop_pct = float(request.POST["trailing_stop_pct"])
+        pos.buyback_pct       = float(request.POST["buyback_pct"])
+        pos.min_hold_pct      = float(request.POST["min_hold_pct"])
+        pos.peak_price        = None  # reseta pico ao mudar parâmetros
+        pos.save(update_fields=["trailing_stop_pct", "buyback_pct", "min_hold_pct", "peak_price"])
+        messages.success(request, f"Parâmetros de {pos.stock.ticker} atualizados.")
+    except (KeyError, ValueError):
+        messages.error(request, "Valores inválidos.")
+    return redirect("operations_dashboard")
+
+

@@ -12,6 +12,13 @@ from .checker import check_all, check_stock
 
 
 def dashboard(request):
+    last_checked_global = (
+        StockPosition.objects.filter(last_checked__isnull=False)
+        .order_by("-last_checked")
+        .values_list("last_checked", flat=True)
+        .first()
+    )
+
     pending = (
         TradeSignal.objects.filter(status="pending")
         .select_related("stock")
@@ -57,9 +64,10 @@ def dashboard(request):
         })
 
     return render(request, "operations/dashboard.html", {
-        "pending":          pending,
-        "history":          history,
-        "position_results": position_results,
+        "pending":              pending,
+        "history":              history,
+        "position_results":     position_results,
+        "last_checked_global":  last_checked_global,
     })
 
 

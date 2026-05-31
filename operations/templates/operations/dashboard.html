@@ -4,7 +4,17 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h2 class="mb-0">Operações em Tempo Real</h2>
+  <div>
+    <h2 class="mb-0">Operações em Tempo Real</h2>
+    <small class="text-muted">
+      <i class="bi bi-clock me-1"></i>
+      {% if last_checked_global %}
+        Última verificação automática: <strong>{{ last_checked_global|date:"d/m/Y \à\s H:i" }}</strong>
+      {% else %}
+        Nenhuma verificação realizada ainda.
+      {% endif %}
+    </small>
+  </div>
   <form method="post" action="{% url 'operations_check' %}">
     {% csrf_token %}
     <button class="btn btn-primary">
